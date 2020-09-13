@@ -1,0 +1,249 @@
+#!/bin/sh
+
+jgraspv_jgrasp_home=$JGRASP_HOME
+jgraspv_jgrasp_java=$JGRASP_JAVA
+jgraspv_jgrasp_classpath=$JGRASP_CLASSPATH
+
+if [ ! "$JGRASP_JAVA_ARGS" ]; then
+   jgraspv_jgrasp_java_args="-Dsun.java2d.uiScale=1"
+fi
+
+# Process the arguments.
+# Each flag can override an environment variable.
+graspv_v=
+for graspv_v2 in $@; do
+   if [ x$graspv_v = "x-j" ]; then
+      jgraspv_jgrasp_home=$graspv_v2
+   elif [ x$graspv_v = "x-a" ]; then
+      jgraspv_jgrasp_java=$graspv_v2
+   elif [ x$graspv_v = "x-cp" ]; then
+      jgraspv_jgrasp_classpath=$graspv_v2
+   fi
+   graspv_v=$graspv_v2
+done
+
+# Get OS and processor type using uname.
+OS=`uname -s`
+PROC=`uname -m`
+case "$PROC" in
+   i[3-7]86) PROC=iX86;;
+   ia64) PROC=iX86;;
+   ia64_32) PROC=iX86;;
+   amd64) PROC=iX86_64;;
+   x86) PROC=iX86;;
+   x86_64) PROC=iX86_64;;
+esac
+
+which_command="which"
+if [ "$OS" != Darwin ]; then
+   if eval type command > /dev/null 2>&1; then
+      which_command="command -v"
+   fi
+fi
+
+
+# Find expr command.
+expr_cmd="expr"
+if [ -x "/usr/bin/expr" ]; then
+	expr_cmd="/usr/bin/expr"
+elif [ -x "/bin/expr" ]; then
+	expr_cmd="/bin/expr"
+fi
+
+
+# Find jGRASP home directory and bin directory.
+if [ "$jgraspv_jgrasp_home" ]; then
+   jgraspv_jgrasp_home_dir="$jgraspv_jgrasp_home"
+   jgraspv_jgrasp_bin_dir="$jgraspv_jgrasp_home/bin"
+else
+   # Follow links in execution path of this shell.
+   jgraspv_prg=$0
+   while [ -h "$jgraspv_prg" ]; do
+      ls=`/bin/ls -ld "$jgraspv_prg"`
+      # Link format in ls output is stuff-> target
+      jgraspv_link=`$expr_cmd "$ls" : '.*-> \(.*\)$'`
+      if $expr_cmd "$jgraspv_link" : '\/' > /dev/null 2>&1; then
+         # Link is a full path.
+         jgraspv_prg="$jgraspv_link"
+      else
+         # Link is relative to source path.
+         jgraspv_prg=`dirname "$jgraspv_prg"`/$jgraspv_link
+      fi
+   done
+
+   jgraspv_jgrasp_bin_dir=`dirname "$jgraspv_prg"`
+   jgraspv_jgrasp_home_dir="$jgraspv_jgrasp_bin_dir/.."
+fi
+
+
+# Look for "java"
+# First try the same directory containing "javac"
+if [ "x$jgraspv_jgrasp_java" = "x" ]; then
+   if eval type javac > /dev/null 2>&1; then
+      jgraspv_jgrasp_java=`$which_command javac`
+      # Follow links in javac.
+      while [ -h "$jgraspv_jgrasp_java" ]; do
+         ls=`/bin/ls -ld "$jgraspv_jgrasp_java"`
+         # Link format in ls output is stuff-> target
+         link=`$expr_cmd "$ls" : '.*-> \(.*\)$'`
+         if $expr_cmd "$link" : '\/' > /dev/null 2>&1; then
+            # Link is a full path.
+            jgraspv_jgrasp_java="$link"
+         else
+            # Link is relative to source path.
+            jgraspv_jgrasp_java=`dirname "$jgraspv_jgrasp_java"`/$link
+         fi
+      done
+      jgraspv_jgrasp_java=`dirname "$jgraspv_jgrasp_java"`/java
+      if [ ! -x "$jgraspv_jgrasp_java" ]; then
+         jgraspv_jgrasp_java="";
+      elif file "$jgraspv_jgrasp_java" | grep -q -e text; then
+         # Java target is probably a shell script.
+         jgraspv_jgrasp_java="";
+      fi
+   fi
+fi
+
+if [ "x$jgraspv_jgrasp_java" = "x" ]; then
+   if eval type java > /dev/null 2>&1; then
+      jgraspv_jgrasp_java=`$which_command java`
+      # Follow links in java.
+      while [ -h "$jgraspv_jgrasp_java" ]; do
+         ls=`/bin/ls -ld "$jgraspv_jgrasp_java"`
+         # Link format in ls output is stuff-> target
+         link=`$expr_cmd "$ls" : '.*-> \(.*\)$'`
+         if $expr_cmd "$link" : '\/' > /dev/null 2>&1; then
+            # Link is a full path.
+            jgraspv_jgrasp_java="$link"
+         else
+            # Link is relative to source path.
+            jgraspv_jgrasp_java=`dirname "$jgraspv_jgrasp_java"`/$link
+         fi
+      done
+      if file "$jgraspv_jgrasp_java" | grep -q -e text; then
+         # Java target is probably a shell script.
+         jgraspv_jgrasp_java="";
+      fi
+   fi
+fi
+
+
+if [ -f "$jgraspv_jgrasp_home_dir/jgrasp.jar" ]; then
+   jgraspv_classpath="jgrasp.jar"
+else
+   # For development only.
+   jgraspv_classpath="../flgl:."
+fi
+
+
+# Look for tools path and add to classpath if found.
+if [ "$jgraspv_jgrasp_classpath" ]; then
+   jgraspv_classpath="$jgraspv_classpath:$jgraspv_jgrasp_classpath"
+else
+   if [ "$jgraspv_jgrasp_java" ]; then
+      jgraspv_java_bin="$jgraspv_jgrasp_java"
+   else
+      if eval type java > /dev/null 2>&1; then
+         jgraspv_java_bin=`$which_command java`
+      fi
+   fi
+
+   if [ "$jgraspv_java_bin" ]; then
+      jgraspv_tools_jar=`dirname "$jgraspv_java_bin"`/../lib/tools.jar
+      if [ -f "$jgraspv_tools_jar" ]; then
+         jgraspv_classpath="$jgraspv_classpath:$jgraspv_tools_jar";
+      else
+         jgraspv_tools_jar=`dirname "$jgraspv_java_bin"`/../../lib/tools.jar
+         if [ -f "$jgraspv_tools_jar" ]; then
+            jgraspv_classpath="$jgraspv_classpath:$jgraspv_tools_jar";
+         fi
+      fi
+   fi
+fi
+
+
+# Find subdirectory for current OS and processor.
+# If not a delivered binary, run sys_jgrasp if it is present and executable.
+# Run directly otherwise.
+PURE_JAVA=No
+if [ "$OS" = Linux -a "$PROC" = iX86_64 ]; then
+   if [ -f "/lib64/ld-lsb-x86-64.so.3" ]; then
+      jgraspv_prog="$jgraspv_jgrasp_bin_dir/linux/jgrasp64"
+   else
+      echo Runtime linker /lib64/ld-lsb-x86-64.so.3 not found.
+      echo If lsb-core is available on your system, you can install it in
+      echo order to run jGRASP with native support. Most newer Linux
+      echo systems do not support LSB though.
+      echo
+      echo Otherwise, follow the instructions in the "src" directory
+      echo of this jGRASP distribution in order to build the native
+      echo components.
+      PURE_JAVA=Yes
+   fi
+elif [ "$OS" = Linux -a "$PROC" = iX86 ]; then
+   if [ -f "/lib/ld-lsb.so.3" ]; then
+      jgraspv_prog="$jgraspv_jgrasp_bin_dir/linux/jgrasp"
+   else
+      echo Runtime linker /lib/ld-lsb.so.3 not found.
+      echo If lsb-core is available on your system, you can install it in
+      echo order to run jGRASP with native support. Most newer Linux
+      echo systems do not support LSB though.
+      echo
+      echo Otherwise, follow the instructions in the "src" directory
+      echo of this jGRASP distribution in order to build the native
+      echo components.
+      PURE_JAVA=Yes
+   fi
+elif [ "$OS" = Darwin ]; then
+   contents=`$expr_cmd "$jgraspv_jgrasp_bin_dir" : "\(..*\)\/Resources/jgrasp/bin"`
+   if [ -x "$contents/MacOS/jcs" ]; then
+      # Mac installation. 
+      jgraspv_prog="$contents/MacOS/jcs"
+   else
+      # Zip installation.
+      jgraspv_prog="$jgraspv_jgrasp_bin_dir/osx104/jcs.app/Contents/MacOS/jcs"
+   fi
+elif [ -x "$jgraspv_jgrasp_bin_dir/sys_jgrasp" ]; then
+   jgraspv_prog="$jgraspv_jgrasp_bin_dir/sys_jgrasp"
+else
+   jgraspv_cmd=java
+   if [ "$jgraspv_jgrasp_java" ]; then
+      jgraspv_cmd=$jgraspv_jgrasp_java
+   fi
+   jgraspv_cmd_tmp="$jgraspv_cmd -cp $jgraspv_classpath $JGRASP_JAVA_ARGS Grasp"
+   echo We do not have a native shell for system $OS on processor $PROC.
+   echo Running jGRASP using \"$jgraspv_cmd_tmp\".
+   echo Any filename argument will be ignored.
+   cd $jgraspv_jgrasp_home_dir
+	exec "$jgraspv_cmd" -cp "$jgraspv_classpath" $JGRASP_JAVA_ARGS Grasp
+   exit 0
+fi
+
+if [ "$PURE_JAVA" = Yes ]; then
+   jgraspv_cmd=java
+   if [ "$jgraspv_jgrasp_java" ]; then
+      jgraspv_cmd=$jgraspv_jgrasp_java
+   fi
+   jgraspv_cmd_tmp="$jgraspv_cmd -cp $jgraspv_classpath $JGRASP_JAVA_ARGS Grasp -pj"
+   echo Running jGRASP using \"$jgraspv_cmd_tmp\".
+   echo Any filename argument will be ignored.
+   echo Native integration with the OS will not be available.
+   cd $jgraspv_jgrasp_home_dir
+	exec "$jgraspv_cmd" -cp "$jgraspv_classpath" $JGRASP_JAVA_ARGS Grasp -pj
+   exit 0
+fi
+
+if [ "$JGRASP_JAVA_ARGS" ]; then
+   jgraspv_java_args="-IJ $JGRASP_JAVA_ARGS -IJ"
+fi
+
+if [ -x "$jgraspv_prog" ]; then
+   exec "$jgraspv_prog" -Icp "$jgraspv_classpath" -Ij "$jgraspv_jgrasp_home_dir" $jgraspv_java_args $@ &
+else
+   if [ -f "$jgraspv_prog" ]; then
+      echo >&2 "$jgraspv_prog is not executable. Check permissions."
+   else
+      echo >&2 "jgrasp not found at $jgraspv_prog as expected."
+   fi
+   exit 1
+fi

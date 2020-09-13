@@ -1,0 +1,12 @@
+s
+compiler setups
+MASM6.11
+      *.  +Z   ;
+g77 (GNU FORTRAN) - generic
+  +Z  (P  .P  !(
+perl - generic
+  :J  $6  (Z  !H
+empty
+  CD  !N  #<  !_
+SYSRPL
+  G   0A  @,  "7

@@ -1,0 +1,61 @@
+#!/bin/sh
+CC="@CC@"
+CFLAGS=-O3
+
+# Get OS and processor type using uname.
+OS=`uname -s`
+PROC=`uname -m`
+case "$PROC" in
+   i[3-7]86) PROC=iX86;;
+   ia64) PROC=iX86;;
+   ia64_32) PROC=iX86;;
+   amd64) PROC=iX86_64;;
+   x86) PROC=iX86;;
+   x86_64) PROC=iX86_64;;
+esac
+
+# Determine wedge and startup shell names.
+WEDGE_NAME="sys_run"
+STARTUP_NAME="sys_jgrasp"
+if [ "$OS" = Linux -a "$PROC" = iX86 ]; then
+   WEDGE_NAME="linux_run"
+   STARTUP_NAME="linux/jgrasp"
+elif [ "$OS" = Linux -a "$PROC" = iX86_64 ]; then
+   WEDGE_NAME="linux_run64"
+   STARTUP_NAME="linux/jgrasp64"
+elif [ "$OS" = Darwin ]; then
+   if [ "$PROC" = iX86 ]; then
+      WEDGE_NAME="osx_i386_run"
+   else
+      WEDGE_NAME="osx_run"
+   fi
+fi
+
+# Backup delivered wedge if necessary.
+if [ "$WEDGE_NAME" != sys_run -a ! -x "../jbin/$WEDGE_NAME.back" ]; then
+   cp "../jbin/$WEDGE_NAME" "../jbin/$WEDGE_NAME.back"
+fi 
+
+# Build the wedge.
+LIBS="@LIBS@"
+DEFINES="@DEFINES@"
+${CC} ${CFLAGS} $DEFINES -o "../jbin/$WEDGE_NAME" wedge.c $LIBS
+strip "../jbin/$WEDGE_NAME"
+chmod a+rx "../jbin/$WEDGE_NAME"
+
+# Build the startup shell if X exists.
+if [ "@HAVE_X@" ]; then
+   # Backup delivered startup shell if necessary.
+   if [ "$STARTUP_NAME" != sys_jgrasp -a ! -x "../bin/$STARTUP_NAME.back" ]; then
+      cp "../bin/$STARTUP_NAME" "../bin/$STARTUP_NAME.back"
+   fi 
+
+   XPRELIBS="@X_PRE_LIBS@"
+   XCFLAGS="@X_CFLAGS@"
+   XLIBS="@X_LIBS@"
+   ${CC} ${CFLAGS} ${XCFLAGS} -o "../bin/$STARTUP_NAME" startup_shell.c ${XLIBS} ${XPRELIBS} -lX11
+   strip "../bin/$STARTUP_NAME"
+   chmod a+rx "../bin/$STARTUP_NAME"
+else
+   echo Configure could not locate X libs. Startup shell not built.
+fi
